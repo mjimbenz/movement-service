@@ -1,0 +1,153 @@
+openapi: 3.0.1
+info:
+  title: Movement Service
+  version: '1.0.0'
+
+servers:
+  - url: http://localhost:8084
+
+paths:
+
+  /:
+    get:
+      summary: List all movements or filter by customer
+      tags: [Movement]
+      parameters:
+        - in: query
+          name: customerId
+          schema: { type: string }
+          required: false
+          description: Filter by customer ID
+      responses:
+        "200":
+          description: Movements list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movement"
+
+    post:
+      summary: Register a new movement
+      tags: [Movement]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MovementRequest"
+      responses:
+        "201":
+          description: Movement registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+
+  /product/{productId}:
+    get:
+      summary: Get all movements associated to a product
+      tags: [Movement]
+      parameters:
+        - in: path
+          name: productId
+          schema: { type: string }
+          required: true
+        - in: query
+          name: customerId
+          schema: { type: string }
+          required: false
+      responses:
+        "200":
+          description: Movements for product
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movement"
+
+  /{id}:
+    get:
+      summary: Get movement by ID
+      tags: [Movement]
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      responses:
+        "200":
+          description: Movement found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "404":
+          description: Movement not found
+
+    delete:
+      summary: Soft delete movement
+      tags: [Movement]
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      responses:
+        "204":
+          description: Deleted (soft delete)
+
+components:
+
+  schemas:
+
+    Movement:
+      type: object
+      required:
+        - id
+        - customerId
+        - productId
+        - movementType
+        - amount
+        - active
+      properties:
+        id:
+          type: string
+        customerId:
+          type: string
+        productId:
+          type: string
+        movementType:
+          type: string
+          enum: [DEPOSIT, WITHDRAWAL, CREDIT_PAYMENT, CARD_CONSUMPTION]
+        amount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+        active:
+          type: boolean
+
+    MovementRequest:
+      type: object
+      required:
+        - customerId
+        - productId
+        - movementType
+        - amount
+      properties:
+        customerId:
+          type: string
+        productId:
+          type: string
+        movementType:
+          type: string
+          enum: [DEPOSIT, WITHDRAWAL, CREDIT_PAYMENT, CARD_CONSUMPTION]
+        amount:
+          type: number
+

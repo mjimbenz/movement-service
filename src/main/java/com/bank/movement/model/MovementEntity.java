@@ -21,7 +21,7 @@ public class MovementEntity {
 
     private String customerId;
     private String productId;
-    private boolean productType;
+    private String productType;
     private String movementType;
     private Double amount;
 

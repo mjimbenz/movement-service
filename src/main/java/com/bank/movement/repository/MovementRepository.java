@@ -7,7 +7,7 @@ import reactor.core.publisher.Mono;
 
 public interface MovementRepository extends ReactiveMongoRepository<MovementEntity, String> {
 
-    Flux<MovementEntity> findByCustomerIdAndActiveTrue();
-    Mono<MovementEntity> findByProductIdAndActiveTrue();
-    Mono<MovementEntity> findByIdAndActiveTrue();
+    Flux<MovementEntity> findByCustomerIdAndActiveTrue(String id);
+    Flux<MovementEntity> findByProductIdAndActiveTrue(String id);
+    Mono<MovementEntity> findByIdAndActiveTrue(String id);
 }

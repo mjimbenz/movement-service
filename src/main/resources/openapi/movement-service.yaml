@@ -119,6 +119,8 @@ components:
           type: string
         productId:
           type: string
+        productType:
+          type: boolean
         movementType:
           type: string
           enum: [DEPOSIT, WITHDRAWAL, CREDIT_PAYMENT, CARD_CONSUMPTION]
@@ -145,6 +147,8 @@ components:
           type: string
         productId:
           type: string
+        productType:
+          type: boolean
         movementType:
           type: string
           enum: [DEPOSIT, WITHDRAWAL, CREDIT_PAYMENT, CARD_CONSUMPTION]

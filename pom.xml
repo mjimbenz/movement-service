@@ -177,7 +177,7 @@
 				<version>7.7.0</version>
 				<executions>
 					<execution>
-						<id>generate-product-api</id>
+						<id>generate-movement-api</id>
 						<goals><goal>generate</goal></goals>
 						<configuration>
 							<inputSpec>${project.basedir}/src/main/resources/openapi/movement-service.yaml</inputSpec>

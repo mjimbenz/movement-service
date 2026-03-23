@@ -1,0 +1,48 @@
+package com.bank.movement.client;
+
+import com.bank.movement.client.model.Customer;
+import com.bank.movement.exception.BusinessException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+
+@Component
+@Slf4j
+@RequiredArgsConstructor
+public class BaseWebClient {
+
+    protected final WebClient client =WebClient.builder()
+            .baseUrl("http://localhost:8080")
+            .build();
+
+
+
+    public Mono<Customer> fallbackCustomer(String id, Throwable t) {
+
+        log.error("[CustomerWebClient] Fallback triggered for id={} due to: {}", id,
+                t != null ? t.getMessage() : "Unknown error");
+
+        if (t instanceof java.util.concurrent.TimeoutException) {
+            return Mono.error(new BusinessException("Customer service timeout while fetching id=" + id));
+        }
+
+        if (t instanceof org.springframework.web.reactive.function.client.WebClientRequestException) {
+            return Mono.error(new BusinessException("Customer service unreachable for id=" + id));
+        }
+
+        if (t instanceof org.springframework.web.reactive.function.client.WebClientResponseException) {
+            return Mono.error(new BusinessException("Customer service returned error for id=" + id));
+        }
+
+        // fallback genérico para cualquier error no categorizado
+        return Mono.error(new BusinessException("Customer Service is unavailable for id=" + id));
+
+    }
+
+}

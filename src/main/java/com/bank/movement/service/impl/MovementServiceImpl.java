@@ -1,6 +1,5 @@
 package com.bank.movement.service.impl;
 
-import com.bank.movement.api.model.MovementRequest;
 import com.bank.movement.api.model.MovementTypeEnum;
 import com.bank.movement.client.ActiveProductWebClient;
 import com.bank.movement.client.CustomerWebClient;
@@ -29,17 +28,27 @@ public class MovementServiceImpl implements MovementService {
 
 
     @Override
-    public Mono<MovementEntity> registerMovement(MovementRequest req) {
+    public Mono<MovementEntity> registerMovement(MovementEntity req) {
         log.info("[Movement] Registering movement {}", req);
         return validateCustomer(req.getCustomerId())
                 .then(validateProduct(req.getProductId()))
-                .flatMap(productType -> validateMovementType(productType, req.getMovementType()))
-                .flatMap(productType -> saveMovement(req, productType));
+                .flatMap(productType -> validateMovementType(
+                        productType,
+                        MovementTypeEnum.fromValue(req.getMovementType()),
+                        req.getProductId(),
+                        req.getAmount())
+                )
+                .flatMap(productType -> {
+                    req.setActive(true);
+                    req.setCreatedAt(LocalDateTime.now());
+                   return repository.save(req)
+                            .doOnSuccess(m -> log.info("[Movement] Movement registered successfully id={} customerId={}",
+                                    m.getId(), m.getCustomerId()))
+                            .doOnError(err -> log.error("[Movement] Error registering movement for customerId={} err={}",
+                                    req.getCustomerId(), err.getMessage()));
+
+                });
     }
-
-
-
-
 
     @Override
     public Flux<MovementEntity> findByProductId(String productId) {
@@ -143,12 +152,19 @@ public class MovementServiceImpl implements MovementService {
                 });
     }
 
-    // -------------------------------------------------------------------------
-    // 3. VALIDAR TIPO DE MOVIMIENTO SEGÚN PRODUCTO
-    // -------------------------------------------------------------------------
-    private Mono<String> validateMovementType(String productType, MovementTypeEnum movementType) {
 
-        log.info("[Movement] Validating movementType={} for productType={}", movementType, productType);
+    // -------------------------------------------------------------------------
+// 3. VALIDAR TIPO DE MOVIMIENTO Y SALDO MÍNIMO
+// -------------------------------------------------------------------------
+    private Mono<String> validateMovementType(
+            String productType,
+            MovementTypeEnum movementType,
+            String productId,
+            Double amount
+    ) {
+
+        log.info("[Movement] Validating movementType={} for productType={}",
+                movementType, productType);
 
         boolean valid = switch (productType) {
             case "PASSIVE" -> (movementType == MovementTypeEnum.DEPOSIT ||
@@ -159,33 +175,63 @@ public class MovementServiceImpl implements MovementService {
         };
 
         if (!valid) {
+            log.warn("[Movement] Movement {} NOT allowed for productType={}", movementType, productType);
             throw new BusinessException("Movement type " + movementType +
                     " does not apply to product type " + productType);
         }
 
+        // SOLO PASSIVE y SOLO WITHDRAWAL
+        if (productType.equals("PASSIVE")) {
+
+            switch (movementType){
+                case WITHDRAWAL -> {
+                    log.info("[Movement] Checking balance for PASSIVE withdrawal | productId={} amount={}",
+                            productId, amount);
+
+                    return pasiveProductWebClient.getProduct(productId)
+                            .flatMap(product -> {
+                                double balance = product.balance();
+                                if (balance < amount) {
+                                    log.error("[Movement] Insufficient balance | balance={} amount={}", balance, amount);
+                                    return Mono.error(new BusinessException("Insufficient balance for withdrawal"));
+                                }
+                                log.info("[Movement] Balance OK | balance={} amount={}", balance, amount);
+                                return pasiveProductWebClient.updateBalance(productId, -amount)
+                                        .flatMap(p ->{
+                                            log.info("[Movement] Try-ing WITHDRAWAL ");
+                                            return Mono.just(p.balance().toString());
+                                        })
+                                        .doOnSuccess(p -> log.info("[Movement] Balance updated successfully for withdrawal | productId={} newBalance={}",
+                                                productId, p))
+                                        .doOnError(err -> log.error("[Movement] Error updating balance for withdrawal | productId={} err={}",
+                                                productId, err.getMessage()));
+                            });
+                }
+                case DEPOSIT -> {
+                    log.info("[Movement] Deposit does not require balance check for PASSIVE | productId={} amount={}",
+                            productId, amount);
+
+                    return pasiveProductWebClient.updateBalance(productId, amount)
+                            .flatMap(p ->{
+                                log.info("[Movement] Trying Deposit ");
+                                return Mono.just(p.balance().toString());
+                            })
+                            .doOnSuccess(p -> log.info("[Movement] Balance updated successfully for DEPOSIT | productId={} newBalance={}",
+                                    productId, p))
+                            .doOnError(err -> log.error("[Movement] Error updating balance for DEPOSIT | productId={} err={}",
+                                    productId, err.getMessage()));
+                }
+            }
+
+
+        }
         return Mono.just(productType);
     }
 
 
 
-    // -------------------------------------------------------------------------
-    // 4. GUARDAR EL MOVIMIENTO
-    // -------------------------------------------------------------------------
-    private Mono<MovementEntity> saveMovement(MovementRequest req, String productType) {
 
-        MovementEntity movement = MovementEntity.builder()
-                .customerId(req.getCustomerId())
-                .productId(req.getProductId())
-                .movementType(req.getMovementType().toString())
-                .amount(req.getAmount().doubleValue())
-                .productType(productType)
-                .active(true)
-                .createdAt(LocalDateTime.now())
-                .build();
 
-        return repository.save(movement)
-                .doOnSuccess(m -> log.info("[Movement] Movement registered id={}", m.getId()));
-    }
 
 
 

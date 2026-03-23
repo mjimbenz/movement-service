@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
                 .errorCode(code)
                 .message(message)
                 .path(path)
-                .microservice("passive-product-service")
+                .microservice("movement-product-service")
                 .build();
     }
 

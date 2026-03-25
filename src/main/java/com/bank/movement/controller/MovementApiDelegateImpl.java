@@ -98,6 +98,9 @@ public class MovementApiDelegateImpl implements MovementApiDelegate {
                 .customerId(entity.getCustomerId())
                 .productId(entity.getProductId())
                 .movementType(MovementTypeEnum.fromValue(entity.getMovementType()))
-                .amount(BigDecimal.valueOf(entity.getAmount()));
+                .amount(BigDecimal.valueOf(entity.getAmount()))
+                .status(entity.getStatus())
+                .active(entity.isActive())
+                .createdAt(entity.getCreatedAt().atOffset(java.time.ZoneOffset.UTC));
     }
 }

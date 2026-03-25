@@ -21,6 +21,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import org.springframework.data.repository.query.Param;
 
 @Document("movements")
 @Data
@@ -43,6 +44,9 @@ public class MovementEntity {
 
     @NotBlank
     private String movementType;
+
+    @Builder.Default
+    private String status = "PENDING";
 
     @NotNull
     @Positive(message = "El monto debe ser mayor que 0")

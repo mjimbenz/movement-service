@@ -1,5 +1,6 @@
 package com.bank.movement.service.impl;
 
+import com.bank.events.MovementRequestedEvent;
 import com.bank.movement.api.model.MovementTypeEnum;
 import com.bank.movement.client.ActiveProductWebClient;
 import com.bank.movement.client.CustomerWebClient;
@@ -8,12 +9,14 @@ import com.bank.movement.exception.BusinessException;
 import com.bank.movement.model.MovementEntity;
 import com.bank.movement.repository.MovementRepository;
 import com.bank.movement.service.MovementService;
+import com.bank.movement.service.saga.MovementEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Service
@@ -25,28 +28,54 @@ public class MovementServiceImpl implements MovementService {
     private final CustomerWebClient customerClient;
     private final ActiveProductWebClient activeProductWebClient;
     private final PasiveProductWebClient pasiveProductWebClient;
+    private final MovementEventPublisher publisher;
+
+
 
 
     @Override
     public Mono<MovementEntity> registerMovement(MovementEntity req) {
         log.info("[Movement] Registering movement {}", req);
+
         return validateCustomer(req.getCustomerId())
                 .then(validateProduct(req.getProductId()))
-                .flatMap(productType -> validateMovementType(
-                        productType,
-                        MovementTypeEnum.fromValue(req.getMovementType()),
-                        req.getProductId(),
-                        req.getAmount())
+                .flatMap(productType ->
+                        validateMovementType(
+                                productType,
+                                MovementTypeEnum.fromValue(req.getMovementType()),
+                                req.getProductId(),
+                                req.getAmount()
+                        )
                 )
-                .flatMap(productType -> {
-                    req.setActive(true);
-                    req.setCreatedAt(LocalDateTime.now());
-                   return repository.save(req)
-                            .doOnSuccess(m -> log.info("[Movement] Movement registered successfully id={} customerId={}",
-                                    m.getId(), m.getCustomerId()))
-                            .doOnError(err -> log.error("[Movement] Error registering movement for customerId={} err={}",
-                                    req.getCustomerId(), err.getMessage()));
+                .then(Mono.defer(() -> {
 
+                    // Preparar movimiento para guardar
+                    req.setActive(true);
+                    req.setStatus("PENDING");
+                    req.setCreatedAt(LocalDateTime.now());
+
+                    return repository.save(req)
+                            .doOnSuccess(m ->
+                                    log.info("[Movement] Movement saved id={} customerId={}",
+                                            m.getId(), m.getCustomerId())
+                            );
+                }))
+                .flatMap(savedMovement -> {
+                    // Construir evento Avro
+                    MovementRequestedEvent event = MovementRequestedEvent.newBuilder()
+                            .setMovementId(savedMovement.getId())
+                            .setCustomerId(savedMovement.getCustomerId())
+                            .setProductId(savedMovement.getProductId())
+                            .setMovementType(savedMovement.getMovementType())
+                            .setAmount(savedMovement.getAmount())
+                            .setEventTimestamp(System.currentTimeMillis())
+                            .build();
+
+                    // Publicar evento
+                    publisher.publish(event);
+                    log.info("[Movement] Published MovementRequestedEvent for movementId={}", savedMovement.getId());
+
+                    return Mono.just(savedMovement);
                 });
     }
 
@@ -196,30 +225,13 @@ public class MovementServiceImpl implements MovementService {
                                     return Mono.error(new BusinessException("Insufficient balance for withdrawal"));
                                 }
                                 log.info("[Movement] Balance OK | balance={} amount={}", balance, amount);
-                                return pasiveProductWebClient.updateBalance(productId, -amount)
-                                        .flatMap(p ->{
-                                            log.info("[Movement] Try-ing WITHDRAWAL ");
-                                            return Mono.just(p.balance().toString());
-                                        })
-                                        .doOnSuccess(p -> log.info("[Movement] Balance updated successfully for withdrawal | productId={} newBalance={}",
-                                                productId, p))
-                                        .doOnError(err -> log.error("[Movement] Error updating balance for withdrawal | productId={} err={}",
-                                                productId, err.getMessage()));
+                                return Mono.just("product");
                             });
                 }
                 case DEPOSIT -> {
                     log.info("[Movement] Deposit does not require balance check for PASSIVE | productId={} amount={}",
                             productId, amount);
-
-                    return pasiveProductWebClient.updateBalance(productId, amount)
-                            .flatMap(p ->{
-                                log.info("[Movement] Trying Deposit ");
-                                return Mono.just(p.balance().toString());
-                            })
-                            .doOnSuccess(p -> log.info("[Movement] Balance updated successfully for DEPOSIT | productId={} newBalance={}",
-                                    productId, p))
-                            .doOnError(err -> log.error("[Movement] Error updating balance for DEPOSIT | productId={} err={}",
-                                    productId, err.getMessage()));
+                    return Mono.just("product");
                 }
             }
 
@@ -227,6 +239,20 @@ public class MovementServiceImpl implements MovementService {
         }
         return Mono.just(productType);
     }
+
+
+
+
+    private Mono<Integer> countMovementsToday(String productId) {
+        LocalDate today = LocalDate.now();
+
+        return repository.countByProductIdAndCreatedAtBetween(
+                productId,
+                today.atStartOfDay(),
+                today.plusDays(1).atStartOfDay()
+        );
+    }
+
 
 
 

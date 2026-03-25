@@ -115,6 +115,7 @@ components:
         - CREDIT_PAYMENT
         - CARD_CONSUMPTION
 
+
     Movement:
       type: object
       required:
@@ -125,6 +126,7 @@ components:
         - movementType
         - amount
         - active
+        - status         # ← NUEVO CAMPO OBLIGATORIO
       properties:
         id:
           type: string
@@ -136,6 +138,9 @@ components:
           $ref: "#/components/schemas/ProductTypeEnum"
         movementType:
           $ref: "#/components/schemas/MovementTypeEnum"
+        status:
+          type: string
+          description: Estado del movimiento (PENDING, COMPLETED, REJECTED)
         amount:
           type: number
         createdAt:
@@ -146,6 +151,7 @@ components:
           format: date-time
         active:
           type: boolean
+
 
     MovementRequest:
       type: object

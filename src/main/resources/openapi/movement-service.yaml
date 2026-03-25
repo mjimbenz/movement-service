@@ -165,3 +165,4 @@ components:
           $ref: "#/components/schemas/MovementTypeEnum"
         amount:
           type: number
+          minimum: 1

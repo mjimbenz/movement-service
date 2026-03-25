@@ -9,28 +9,34 @@ import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 @Component
 @Slf4j
-@RequiredArgsConstructor
 public class PasiveProductWebClient extends BaseWebClient{
+
+    public PasiveProductWebClient(@Value("${app.server.gateway}") String gateway) {
+        super(gateway);
+    }
 
     @CircuitBreaker(name = "passive-product-service", fallbackMethod = "fallbackCustomer")
     @Retry(name = "passive-product-service")
     @TimeLimiter(name = "passive-product-service")
     public Mono<PasiveProduct> getProduct(String id) {
-        return client.get().uri("/passive-product-service/{id}", id)
+        return webClient.get().uri("/passive-product-service/{id}", id)
                 .retrieve()
                 .bodyToMono(PasiveProduct.class)
                 .switchIfEmpty(Mono.error(new BusinessException("Product not found with id: " + id)));
     }
-    @CircuitBreaker(name = "passive-product-service", fallbackMethod = "fallbackCustomer")
+
+
+    @CircuitBreaker(name = "passive-product-service", fallbackMethod = "fallback")
     @Retry(name = "passive-product-service")
     @TimeLimiter(name = "passive-product-service")
     public Mono<PasiveProduct> updateBalance(String id, double amount) {
-        return client.patch()
+        return webClient.patch()
                 .uri(uriBuilder -> uriBuilder
                         .path("/passive-product-service/{id}/balance")
                         .build(id)
@@ -39,5 +45,9 @@ public class PasiveProductWebClient extends BaseWebClient{
                 .retrieve()
                 .bodyToMono(PasiveProduct.class)
                 .switchIfEmpty(Mono.error(new BusinessException("Product not found with id: " + id)));
+    }
+
+    public Mono<ActiveProduct> fallback(String id, Throwable t) {
+        return handleFallback(id, t);
     }
 }

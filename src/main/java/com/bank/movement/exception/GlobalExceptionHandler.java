@@ -1,6 +1,5 @@
 package com.bank.movement.exception;
 
-
 import com.bank.movement.exception.dto.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -8,12 +7,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
+
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
@@ -29,7 +30,7 @@ public class GlobalExceptionHandler {
     }
 
     // -----------------------------------------------------
-    // 1. BUSINESS EXCEPTION (errores de reglas de negocio)
+    // 1. BUSINESS EXCEPTION
     // -----------------------------------------------------
     @ExceptionHandler(BusinessException.class)
     public Mono<ResponseEntity<ErrorResponse>> handleBusinessException(
@@ -49,7 +50,7 @@ public class GlobalExceptionHandler {
     }
 
     // -----------------------------------------------------
-    // 2. DECODING EXCEPTION (JSON mal formado o ENUM inválido)
+    // 2. DECODING EXCEPTION
     // -----------------------------------------------------
     @ExceptionHandler(org.springframework.core.codec.DecodingException.class)
     public Mono<ResponseEntity<ErrorResponse>> handleDecodingException(
@@ -71,8 +72,32 @@ public class GlobalExceptionHandler {
     }
 
     // -----------------------------------------------------
-    // 3. VALIDATION EXCEPTION
+    // ✅ 3. VALIDATION EXCEPTION PARA SPRING WEBFLUX
     // -----------------------------------------------------
+    @ExceptionHandler(WebExchangeBindException.class)
+    public Mono<ResponseEntity<ErrorResponse>> handleWebExchangeBindException(
+            WebExchangeBindException ex, ServerWebExchange exchange) {
+
+        String errors = ex.getFieldErrors()
+                .stream()
+                .map(field -> field.getField() + " " + field.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+
+        log.warn("[WebExchangeBindException] {} | path={}", errors, exchange.getRequest().getPath());
+
+        return Mono.just(
+                ResponseEntity.badRequest()
+                        .body(buildError(
+                                "VALIDATION_ERROR",
+                                errors,
+                                exchange.getRequest().getPath().value()
+                        ))
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // ⚠ OPCIONAL: SOLO SI ALGÚN CONTROLADOR AÚN DISPARA MVC VALIDATIONS
+    // ------------------------------------------------------------------
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Mono<ResponseEntity<ErrorResponse>> handleValidationException(
             MethodArgumentNotValidException ex, ServerWebExchange exchange) {
@@ -96,7 +121,7 @@ public class GlobalExceptionHandler {
     }
 
     // -----------------------------------------------------
-    // 4. EXTERNAL SERVICE RESPONSE EXCEPTION (WebClient errores HTTP)
+    // 4. WebClient errores HTTP
     // -----------------------------------------------------
     @ExceptionHandler(WebClientResponseException.class)
     public Mono<ResponseEntity<ErrorResponse>> handleWebClientError(
@@ -119,7 +144,7 @@ public class GlobalExceptionHandler {
     }
 
     // -----------------------------------------------------
-    // 5. CAJA NEGRA: Cualquier error desconocido
+    // 5. CAJA NEGRA
     // -----------------------------------------------------
     @ExceptionHandler(Throwable.class)
     public Mono<ResponseEntity<ErrorResponse>> handleGenericError(
@@ -129,8 +154,7 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 ex.getCause() != null ? ex.getCause().getMessage() : "none",
                 exchange.getRequest().getPath(),
-                ex // stacktrace
-        );
+                ex);
 
         return Mono.just(
                 ResponseEntity

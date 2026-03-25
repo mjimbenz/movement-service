@@ -20,14 +20,14 @@ public class KafkaConsumerConfig {
 
         Map<String, Object> config = new HashMap<>();
 
-        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:9092");
 
         // Clave: DESERIALIZADORES AVRO
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class);
 
         // Schema registry
-        config.put("schema.registry.url", "http://localhost:8081");
+        config.put("schema.registry.url", "http://schema-registry:8081");
 
         // Para recibir clases generadas por Avro (MovementRequestedEvent, etc.)
         config.put("specific.avro.reader", true);

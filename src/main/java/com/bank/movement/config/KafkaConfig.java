@@ -23,12 +23,12 @@ public class KafkaConfig {
 
         Map<String, Object> config = new HashMap<>();
 
-        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:9092");
 
         // AVRO
         config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, KafkaAvroSerializer.class);
-        config.put("schema.registry.url", "http://localhost:8081");
+        config.put("schema.registry.url", "http://schema-registry:8081");
 
         // Retries obligatorios para Avro
         config.put(ProducerConfig.RETRIES_CONFIG, 10);

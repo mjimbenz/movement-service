@@ -17,6 +17,7 @@ import java.util.Map;
 @Configuration
 public class KafkaConfig {
 
+
     @Bean
     public ProducerFactory<String, MovementRequestedEvent> movementProducerFactory() {
 

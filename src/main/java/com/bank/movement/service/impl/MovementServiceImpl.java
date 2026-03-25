@@ -233,6 +233,11 @@ public class MovementServiceImpl implements MovementService {
                             productId, amount);
                     return Mono.just("product");
                 }
+                default -> {
+                    log.warn("[Movement] Invalid movement type {} for PASSIVE product", movementType);
+                    return Mono.error(new BusinessException("Invalid movement type " + movementType +
+                            " for PASSIVE product"));
+                }
             }
 
 

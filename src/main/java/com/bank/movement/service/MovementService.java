@@ -1,6 +1,5 @@
 package com.bank.movement.service;
 
-import com.bank.movement.api.model.MovementRequest;
 import com.bank.movement.model.MovementEntity;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
